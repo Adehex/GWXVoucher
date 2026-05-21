@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GWX — Payment Request Voucher Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="login-screen">
+  <div class="login-container">
+    <div class="login-header">
+      <div class="login-title">GWX Voucher</div>
+      <div class="login-subtitle" id="auth-subtitle">Please sign in to continue</div>
+    </div>
+    
+    <!-- SIGN IN FORM -->
+    <div id="form-signin">
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="email" class="form-input" id="signin-email" placeholder="Enter your email">
+      </div>
+      <div class="form-group" style="margin-bottom: 24px;">
+        <label class="form-label">Password</label>
+        <div class="password-wrapper">
+          <input type="password" class="form-input" id="signin-password" placeholder="Enter password">
+          <button type="button" class="toggle-password" onclick="togglePasswordVisibility('signin-password')" title="Toggle Password Visibility">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+      <div class="form-group remember-me" style="display:flex; align-items:center; gap:8px; margin-bottom: 24px;">
+        <input type="checkbox" id="signin-remember" checked>
+        <label for="signin-remember" style="font-size:13px; color:var(--text3); margin:0; cursor:pointer;">Remember Me</label>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="handleSignIn()">Sign In</button>
+      <div class="auth-toggle">
+        Don't have an account? <a onclick="toggleAuthMode('signup')">Sign Up</a>
+      </div>
+    </div>
+    
+    <!-- SIGN UP FORM -->
+    <div id="form-signup" class="hidden">
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="email" class="form-input" id="signup-email" placeholder="Enter your email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div class="password-wrapper">
+          <input type="password" class="form-input" id="signup-password" placeholder="Choose a password">
+          <button type="button" class="toggle-password" onclick="togglePasswordVisibility('signup-password')" title="Toggle Password Visibility">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm Password</label>
+        <div class="password-wrapper">
+          <input type="password" class="form-input" id="signup-confirm-password" placeholder="Confirm password">
+          <button type="button" class="toggle-password" onclick="togglePasswordVisibility('signup-confirm-password')" title="Toggle Password Visibility">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom: 24px;">
+        <label class="form-label">Display Name</label>
+        <input type="text" class="form-input" id="signup-name" placeholder="E.g. John Doe">
+        <div style="font-size:11px; color:var(--text3); margin-top:4px;">This will be used for "Prepared by"</div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="handleSignUp()">Create Account</button>
+      <div class="auth-toggle">
+        Already have an account? <a onclick="toggleAuthMode('signin')">Sign In</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== APP SCREEN ===== -->
+<div id="app-screen">
+
+<!-- ===== APP HEADER ===== -->
+<header class="app-header">
+  <div class="app-logo">
+    <img src="assets/img/logo.png" alt="GWX Logo" style="height:32px;object-fit:contain">
+    <div class="logo-divider"></div>
+    <div class="logo-subtitle">Payment Request Voucher Generator</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-sm" onclick="handleLogout()" style="background:var(--surface2); color:var(--text); border:1px solid var(--border);">Logout</button>
+  </div>
+</header>
+
+<!-- ===== APP BODY ===== -->
+<div class="app-body">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="sidebar-scroll">
+
+      <!-- Section title -->
+      <div class="section-title" style="margin-bottom:12px;">Voucher Details</div>
+
+      <!-- SECTION: Basic Info -->
+      <div class="form-section">
+        <div class="section-title">Basic Information</div>
+
+        <div class="form-group">
+          <label class="form-label">Originating Department</label>
+          <div class="select-wrapper">
+            <select class="form-select" id="f-dept">
+              <option value="Greenlight">Greenlight</option>
+              <option value="Opay">Opay</option>
+              <option value="Nis Courier">Nis Courier</option>
+              <option value="Operations">Operations</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input class="form-input" type="date" id="f-date">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Dept. Manager Sign</label>
+          <input class="form-input" type="text" id="f-manager" placeholder="Manager's name or initials">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Name of Beneficiary</label>
+          <div id="beneficiaries-container"></div>
+          <button class="btn btn-ghost btn-sm" onclick="addBeneficiary()" style="width:100%;margin-top:4px;justify-content:center">
+            + Add Beneficiary
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Account Number</label>
+          <input class="form-input" type="text" id="f-account" placeholder="0000000000" maxlength="10">
+        </div>
+      </div>
+
+      <!-- SECTION: Payment Items -->
+      <div class="form-section">
+        <div class="section-title">Payment Items</div>
+
+        <div class="items-table-header">
+          <span>S/N</span>
+          <span>Description</span>
+          <span style="text-align:right">Amount (₦)</span>
+          <span></span>
+        </div>
+
+        <div id="items-container"></div>
+
+        <button class="btn btn-ghost btn-sm" onclick="addItem()" style="width:100%;margin-top:8px;justify-content:center">
+          + Add Item
+        </button>
+
+        <div class="items-total-bar">
+          <span class="total-label-txt">Grand Total</span>
+          <span class="total-amount-txt" id="total-display">₦0.00</span>
+        </div>
+
+        <div class="form-group" style="margin-top:6px">
+          <label class="form-label">Amount In Words</label>
+          <input class="form-input" type="text" id="f-amount-words" placeholder="Auto-generated from total">
+        </div>
+      </div>
+
+      <!-- SECTION: Authorisations -->
+      <div class="form-section">
+        <div class="section-title">Authorisations</div>
+
+        <div class="form-group">
+          <label class="form-label">Prepared By</label>
+          <input class="form-input" type="text" id="f-prepared" placeholder="">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Validated By Audit</label>
+          <input class="form-input" type="text" id="f-audit" placeholder="">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Payment Approved By</label>
+          <input class="form-input" type="text" id="f-approved" placeholder="">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Head of Account</label>
+          <input class="form-input" type="text" id="f-head" placeholder="">
+        </div>
+
+        <div class="flex-row">
+          <div class="form-group flex-1">
+            <label class="form-label">COO</label>
+            <input class="form-input" type="text" id="f-coo" placeholder="">
+          </div>
+          <div class="form-group flex-1">
+            <label class="form-label">MD</label>
+            <input class="form-input" type="text" id="f-md" placeholder="">
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /sidebar-scroll -->
+
+    <!-- Sidebar footer actions -->
+    <div class="sidebar-footer">
+      <button class="btn btn-primary btn-full" onclick="saveVoucher()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        ✓ Save Voucher
+      </button>
+      <div class="flex-row">
+        <button class="btn btn-ghost btn-sm flex-1" onclick="resetForm(); renderItems();" style="justify-content:center">
+          Reset Form
+        </button>
+        <button class="btn btn-ghost btn-sm flex-1" onclick="autoFillSlot()" style="justify-content:center;color:#f59e0b;border-color:rgba(245,158,11,0.3)">
+          ⚡ Quick Fill
+        </button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ===== HISTORY SIDEBAR ===== -->
+  <aside class="history-sidebar" style="width: 380px; flex-shrink: 0; background: var(--surface2); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; z-index: 5;">
+    <div class="history-section" style="padding: 24px; flex: 1; display: flex; flex-direction: column; overflow: hidden; margin-top: 0;">
+      <div class="history-section-header" style="margin-bottom: 20px;">
+        <span class="history-section-title" style="font-size: 15px;">📋 Voucher History</span>
+        <button class="btn btn-sm btn-ghost" onclick="clearHistory()" title="Clear all history">Clear All</button>
+      </div>
+      <div id="history-list" class="history-list" style="flex: 1; max-height: none; overflow-y: auto; margin-bottom: 20px;">
+        <div class="history-empty">No vouchers saved yet. Fill the form and click Save.</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px; margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border);">
+        <button class="btn btn-primary btn-full" onclick="openPreviewModal()" style="font-size: 17px; padding: 16px; border-radius: 8px; justify-content: center; box-shadow: 0 4px 15px rgba(74, 127, 247, 0.25);">
+          👁 Print Preview
+        </button>
+        <button class="btn btn-success btn-full" onclick="printSelected()" style="font-size: 17px; padding: 16px; border-radius: 8px; justify-content: center; box-shadow: 0 4px 15px rgba(34, 201, 122, 0.25);">
+          🖨 Print Selected<span id="print-count" class="print-count-badge" style="display:none">0</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+</div><!-- /app-body -->
+
+<!-- ===== PRINT SECTION (hidden on screen) ===== -->
+<div class="print-section" id="print-section">
+  <div class="print-page-wrapper">
+    <div class="a4-page" id="print-a4">
+      <div class="voucher-cell" id="print-v1"></div>
+      <div class="voucher-cell" id="print-v2"></div>
+      <div class="voucher-cell" id="print-v3"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PREVIEW MODAL ===== -->
+<div class="modal-overlay" id="preview-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">A4 Landscape Preview</div>
+      <div style="display: flex; gap: 16px; align-items: center;">
+        <button class="btn btn-success btn-sm" onclick="printSelected()">🖨 Print Selected</button>
+        <button class="modal-close" onclick="closePreviewModal()" title="Close">&times;</button>
+      </div>
+    </div>
+    <div class="modal-body" style="flex: 1; overflow-y: auto; background: var(--bg); display: flex; flex-direction: column; align-items: center; padding: 24px;">
+      <main class="preview-area" id="preview-area" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+        <div class="page-scale-wrapper" id="page-scale-wrapper">
+          <div class="a4-page" id="preview-a4">
+            <div class="voucher-cell" id="prev-v1"></div>
+            <div class="voucher-cell" id="prev-v2"></div>
+            <div class="voucher-cell" id="prev-v3"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<!-- =============================================
+     JAVASCRIPT
+============================================= -->
+<script src="assets/js/app.js"></script>
+
+</div><!-- /app-screen -->
+</body>
+</html>
