@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function loadUserHistory() {
-  const vouchersRef = db.collection('users').doc(currentUser.uid).collection('vouchers');
+  const vouchersRef = db.collection('users').doc(currentUser.email).collection('vouchers');
   unsubscribeHistory = vouchersRef.onSnapshot(snapshot => {
     history = [];
     snapshot.forEach(doc => {
@@ -236,7 +236,7 @@ async function saveVoucher() {
   if (!data.beneficiary && !data.dept) return showToast('Please fill in at least the beneficiary name.', 'error');
   
   data.savedAt = new Date().toLocaleString();
-  const vouchersRef = db.collection('users').doc(currentUser.uid).collection('vouchers');
+  const vouchersRef = db.collection('users').doc(currentUser.email).collection('vouchers');
   
   try {
     if (editingVoucherId) {
@@ -297,7 +297,7 @@ function toggleSelect(id) {
 async function deleteFromHistory(id) {
   if (!db || !currentUser) return;
   try {
-    await db.collection('users').doc(currentUser.uid).collection('vouchers').doc(id).delete();
+    await db.collection('users').doc(currentUser.email).collection('vouchers').doc(id).delete();
     selectedIds = selectedIds.filter(sid => sid !== id);
     if (editingVoucherId === id) {
       editingVoucherId = null;
@@ -318,7 +318,7 @@ async function editFromHistory(id) {
   let autoSaved = false;
   if (hasContent && editingVoucherId !== id) {
     currentData.savedAt = new Date().toLocaleString();
-    const vouchersRef = db.collection('users').doc(currentUser.uid).collection('vouchers');
+    const vouchersRef = db.collection('users').doc(currentUser.email).collection('vouchers');
     try {
       if (editingVoucherId) {
         await vouchersRef.doc(editingVoucherId).set(currentData);
@@ -352,7 +352,7 @@ async function clearHistory() {
   if (!confirm('Are you sure you want to clear all history? This cannot be undone!')) return;
   
   try {
-    const vouchersRef = db.collection('users').doc(currentUser.uid).collection('vouchers');
+    const vouchersRef = db.collection('users').doc(currentUser.email).collection('vouchers');
     const snapshot = await vouchersRef.get();
     
     const batch = db.batch();
