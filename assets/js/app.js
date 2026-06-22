@@ -243,7 +243,9 @@ async function saveVoucher() {
       await vouchersRef.doc(editingVoucherId).set(data);
       editingVoucherId = null;
     } else {
-      await vouchersRef.add(data);
+      const safeName = (data.beneficiary || data.dept || 'Voucher').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+      const newId = `${safeName}_${Date.now()}`;
+      await vouchersRef.doc(newId).set(data);
     }
     resetForm();
     renderItems();
@@ -323,7 +325,9 @@ async function editFromHistory(id) {
       if (editingVoucherId) {
         await vouchersRef.doc(editingVoucherId).set(currentData);
       } else {
-        await vouchersRef.add(currentData);
+        const safeName = (currentData.beneficiary || currentData.dept || 'Voucher').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+        const newId = `${safeName}_${Date.now()}`;
+        await vouchersRef.doc(newId).set(currentData);
       }
       autoSaved = true;
     } catch (err) {
