@@ -1,33 +1,76 @@
 // =============================================
 // STATE
 // =============================================
-let currentUser = JSON.parse(localStorage.getItem('gwx_user') || sessionStorage.getItem('gwx_user') || 'null');
-let registeredUsers = JSON.parse(localStorage.getItem('gwx_registered_users') || '[]');
+let currentUser = null;
 let items = [{ desc: '', amount: '' }];
 let beneficiaries = [''];
-let history = JSON.parse(localStorage.getItem('gwx_history') || '[]');
+let history = [];
 let selectedIds = [];
+let editingVoucherId = null;
+let unsubscribeHistory = null;
 
 // =============================================
 // INIT
 // =============================================
 document.addEventListener('DOMContentLoaded', function () {
-  if (currentUser) {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app-screen').style.display = 'flex';
-    document.getElementById('f-prepared').value = currentUser.displayName;
-  } else {
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('app-screen').style.display = 'none';
+  if (!auth || !db) {
+    document.getElementById('auth-subtitle').textContent = "FIREBASE CONFIG MISSING. See assets/js/firebase-config.js";
+    showToast("Firebase Config Missing", "error");
+    return;
   }
+
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      currentUser = { email: user.email, displayName: user.displayName || user.email.split('@')[0], uid: user.uid };
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app-screen').style.display = 'flex';
+      document.getElementById('f-prepared').value = currentUser.displayName;
+      loadUserHistory();
+    } else {
+      currentUser = null;
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('app-screen').style.display = 'none';
+      if (unsubscribeHistory) {
+        unsubscribeHistory();
+        unsubscribeHistory = null;
+      }
+      history = [];
+    }
+  });
+
   setTodayDate();
   renderBeneficiaries();
   renderItems();
-  renderHistory();
-  renderSelectedPreviews();
   adjustPreviewScale();
   window.addEventListener('resize', adjustPreviewScale);
 });
+
+function loadUserHistory() {
+  const vouchersRef = db.collection('users').doc(currentUser.uid).collection('vouchers');
+  unsubscribeHistory = vouchersRef.onSnapshot(snapshot => {
+    history = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      data.id = doc.id;
+      history.push(data);
+    });
+    
+    history.sort((a, b) => {
+      const dateA = new Date(a.date || 0).getTime();
+      const dateB = new Date(b.date || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      const ta = a.savedAt ? new Date(a.savedAt).getTime() : 0;
+      const tb = b.savedAt ? new Date(b.savedAt).getTime() : 0;
+      return tb - ta;
+    });
+
+    renderHistory();
+    renderSelectedPreviews();
+  }, error => {
+    console.error("Error fetching history:", error);
+    showToast("Error loading vouchers", "error");
+  });
+}
 
 // =============================================
 // AUTHENTICATION
@@ -44,32 +87,19 @@ function toggleAuthMode(mode) {
   }
 }
 
-function handleSignIn() {
+async function handleSignIn() {
+  if (!auth) return showToast("Firebase Config Missing", "error");
   const email = document.getElementById('signin-email').value.trim();
   const pass = document.getElementById('signin-password').value.trim();
   
-  if (!email || !pass) {
-    showToast("Please fill in all sign-in fields.", 'error');
-    return;
-  }
+  if (!email || !pass) return showToast("Please fill in all sign-in fields.", 'error');
   
-  const user = registeredUsers.find(u => u.email === email && u.password === pass);
-  if (!user) {
-    showToast("Invalid email or password.", 'error');
-    return;
+  try {
+    await auth.signInWithEmailAndPassword(email, pass);
+    showToast(`Welcome back!`);
+  } catch (err) {
+    showToast(err.message, 'error');
   }
-  
-  currentUser = { email: user.email, displayName: user.displayName };
-  if (document.getElementById('signin-remember').checked) {
-    localStorage.setItem('gwx_user', JSON.stringify(currentUser));
-  } else {
-    sessionStorage.setItem('gwx_user', JSON.stringify(currentUser));
-  }
-  
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-screen').style.display = 'flex';
-  document.getElementById('f-prepared').value = currentUser.displayName;
-  showToast(`Welcome back, ${currentUser.displayName}!`);
 }
 
 function togglePasswordVisibility(inputId) {
@@ -81,56 +111,33 @@ function togglePasswordVisibility(inputId) {
   }
 }
 
-function handleSignUp() {
+async function handleSignUp() {
+  if (!auth) return showToast("Firebase Config Missing", "error");
   const email = document.getElementById('signup-email').value.trim();
   const pass = document.getElementById('signup-password').value.trim();
   const confirmPass = document.getElementById('signup-confirm-password').value.trim();
   const name = document.getElementById('signup-name').value.trim();
   
-  if (!email || !pass || !confirmPass || !name) {
-    showToast("Please fill in all sign-up fields.", 'error');
-    return;
+  if (!email || !pass || !confirmPass || !name) return showToast("Please fill in all sign-up fields.", 'error');
+  if (pass !== confirmPass) return showToast("Passwords do not match.", 'error');
+  
+  try {
+    const userCred = await auth.createUserWithEmailAndPassword(email, pass);
+    await userCred.user.updateProfile({ displayName: name });
+    window.location.reload(); 
+  } catch (err) {
+    showToast(err.message, 'error');
   }
-  
-  if (pass !== confirmPass) {
-    showToast("Passwords do not match.", 'error');
-    return;
-  }
-  
-  if (registeredUsers.find(u => u.email === email)) {
-    showToast("This email is already registered.", 'error');
-    return;
-  }
-  
-  const newUser = { email, password: pass, displayName: name };
-  registeredUsers.push(newUser);
-  localStorage.setItem('gwx_registered_users', JSON.stringify(registeredUsers));
-  
-  currentUser = { email, displayName: name };
-  localStorage.setItem('gwx_user', JSON.stringify(currentUser));
-  
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app-screen').style.display = 'flex';
-  document.getElementById('f-prepared').value = currentUser.displayName;
-  showToast(`Account created for ${name}!`);
 }
 
 function handleLogout() {
-  currentUser = null;
-  localStorage.removeItem('gwx_user');
-  sessionStorage.removeItem('gwx_user');
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('app-screen').style.display = 'none';
-  
-  // Clear forms
+  if (auth) auth.signOut();
   document.getElementById('signin-email').value = '';
   document.getElementById('signin-password').value = '';
   document.getElementById('signup-email').value = '';
   document.getElementById('signup-password').value = '';
   document.getElementById('signup-confirm-password').value = '';
   document.getElementById('signup-name').value = '';
-  
-  // Go back to signin mode by default
   toggleAuthMode('signin');
   showToast("Logged out successfully");
 }
@@ -190,6 +197,7 @@ function loadSlotToForm(d) {
 }
 
 function resetForm() {
+  editingVoucherId = null;
   document.getElementById('f-dept').value = 'Greenlight';
   setTodayDate();
   ['f-manager','f-account','f-amount-words',
@@ -205,38 +213,45 @@ function resetForm() {
 function getFormData() {
   const cleanBeneficiaries = beneficiaries.map(b => b.trim()).filter(Boolean);
   return {
-    dept: document.getElementById('f-dept').value,
-    date: document.getElementById('f-date').value,
-    manager: document.getElementById('f-manager').value,
-    beneficiary: cleanBeneficiaries.join(', '),
-    beneficiaries: cleanBeneficiaries,
-    account: document.getElementById('f-account').value,
-    items: items.map(i => ({ ...i })),
-    amountWords: document.getElementById('f-amount-words').value,
-    prepared: document.getElementById('f-prepared').value,
-    audit: document.getElementById('f-audit').value,
-    approved: document.getElementById('f-approved').value,
-    head: document.getElementById('f-head').value,
-    coo: document.getElementById('f-coo').value,
-    md: document.getElementById('f-md').value,
+    dept: document.getElementById('f-dept').value || '',
+    date: document.getElementById('f-date').value || '',
+    manager: document.getElementById('f-manager').value || '',
+    beneficiary: cleanBeneficiaries.join(', ') || '',
+    beneficiaries: cleanBeneficiaries || [],
+    account: document.getElementById('f-account').value || '',
+    items: items.map(i => ({ desc: i.desc || '', amount: i.amount || '' })),
+    amountWords: document.getElementById('f-amount-words').value || '',
+    prepared: document.getElementById('f-prepared').value || '',
+    audit: document.getElementById('f-audit').value || '',
+    approved: document.getElementById('f-approved').value || '',
+    head: document.getElementById('f-head').value || '',
+    coo: document.getElementById('f-coo').value || '',
+    md: document.getElementById('f-md').value || '',
   };
 }
 
-function saveVoucher() {
+async function saveVoucher() {
+  if (!db || !currentUser) return showToast("Not connected to database", "error");
   const data = getFormData();
-  if (!data.beneficiary && !data.dept) {
-    showToast('Please fill in at least the beneficiary name.', 'error');
-    return;
-  }
-  data.id = Date.now();
+  if (!data.beneficiary && !data.dept) return showToast('Please fill in at least the beneficiary name.', 'error');
+  
   data.savedAt = new Date().toLocaleString();
-  history.unshift(data);
-  localStorage.setItem('gwx_history', JSON.stringify(history));
-  resetForm();
-  renderItems();
-  renderHistory();
-  renderSelectedPreviews();
-  showToast('✓ Voucher saved to history!', 'success');
+  const vouchersRef = db.collection('users').doc(currentUser.uid).collection('vouchers');
+  
+  try {
+    if (editingVoucherId) {
+      await vouchersRef.doc(editingVoucherId).set(data);
+      editingVoucherId = null;
+    } else {
+      await vouchersRef.add(data);
+    }
+    resetForm();
+    renderItems();
+    showToast('✓ Voucher saved to cloud!', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Error saving voucher.', 'error');
+  }
 }
 
 function renderHistory() {
@@ -249,15 +264,15 @@ function renderHistory() {
   container.innerHTML = history.map(v => {
     const isSelected = selectedIds.includes(v.id);
     const total = v.items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
-    return `<div class="history-item ${isSelected ? 'selected' : ''}" onclick="toggleSelect(${v.id})">
+    return `<div class="history-item ${isSelected ? 'selected' : ''}" onclick="toggleSelect('${v.id}')">
       <div class="history-check">${isSelected ? '✓' : ''}</div>
       <div class="history-info">
         <div class="history-info-name">${escHtml(v.dept || v.beneficiary || 'Untitled')}</div>
         <div class="history-info-detail">${v.beneficiary ? escHtml(v.beneficiary) + ' · ' : ''}${fmtDate(v.date)} · ₦${fmtNum(total)}</div>
       </div>
       <div class="history-actions">
-        <button class="history-btn" onclick="event.stopPropagation(); editFromHistory(${v.id})" title="Edit">✎</button>
-        <button class="history-btn delete" onclick="event.stopPropagation(); deleteFromHistory(${v.id})" title="Delete">×</button>
+        <button class="history-btn" onclick="event.stopPropagation(); editFromHistory('${v.id}')" title="Edit">✎</button>
+        <button class="history-btn delete" onclick="event.stopPropagation(); deleteFromHistory('${v.id}')" title="Delete">×</button>
       </div>
     </div>`;
   }).join('');
@@ -279,38 +294,81 @@ function toggleSelect(id) {
   renderSelectedPreviews();
 }
 
-function deleteFromHistory(id) {
-  history = history.filter(v => v.id !== id);
-  selectedIds = selectedIds.filter(sid => sid !== id);
-  localStorage.setItem('gwx_history', JSON.stringify(history));
-  renderHistory();
-  renderSelectedPreviews();
-  showToast('Voucher deleted.', 'success');
+async function deleteFromHistory(id) {
+  if (!db || !currentUser) return;
+  try {
+    await db.collection('users').doc(currentUser.uid).collection('vouchers').doc(id).delete();
+    selectedIds = selectedIds.filter(sid => sid !== id);
+    if (editingVoucherId === id) {
+      editingVoucherId = null;
+      resetForm();
+    }
+    showToast('Voucher deleted.', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Error deleting voucher.', 'error');
+  }
 }
 
-function editFromHistory(id) {
+async function editFromHistory(id) {
+  if (!db || !currentUser) return;
+  const currentData = getFormData();
+  const hasContent = currentData.beneficiary.trim() !== '' || currentData.items.some(i => i.desc.trim() !== '' || i.amount !== '');
+  
+  let autoSaved = false;
+  if (hasContent && editingVoucherId !== id) {
+    currentData.savedAt = new Date().toLocaleString();
+    const vouchersRef = db.collection('users').doc(currentUser.uid).collection('vouchers');
+    try {
+      if (editingVoucherId) {
+        await vouchersRef.doc(editingVoucherId).set(currentData);
+      } else {
+        await vouchersRef.add(currentData);
+      }
+      autoSaved = true;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   const v = history.find(h => h.id === id);
   if (!v) return;
   loadSlotToForm(v);
   renderItems();
-  // Remove from history
-  history = history.filter(h => h.id !== id);
-  selectedIds = selectedIds.filter(sid => sid !== id);
-  localStorage.setItem('gwx_history', JSON.stringify(history));
+  editingVoucherId = id;
+  
   renderHistory();
   renderSelectedPreviews();
-  showToast('Voucher loaded for editing. Save again when done.', 'success');
+  
+  if (autoSaved) {
+    showToast('Current work auto-saved. Loaded new voucher.', 'success');
+  } else {
+    showToast('Voucher loaded for editing.', 'success');
+  }
 }
 
-function clearHistory() {
+async function clearHistory() {
   if (history.length === 0) return;
-  if (!confirm('Are you sure you want to clear all history?')) return;
-  history = [];
-  selectedIds = [];
-  localStorage.removeItem('gwx_history');
-  renderHistory();
-  renderSelectedPreviews();
-  showToast('History cleared.', 'success');
+  if (!confirm('Are you sure you want to clear all history? This cannot be undone!')) return;
+  
+  try {
+    const vouchersRef = db.collection('users').doc(currentUser.uid).collection('vouchers');
+    const snapshot = await vouchersRef.get();
+    
+    const batch = db.batch();
+    snapshot.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    
+    selectedIds = [];
+    editingVoucherId = null;
+    resetForm();
+    showToast('History cleared.', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Error clearing history.', 'error');
+  }
 }
 
 function updatePrintCount() {
