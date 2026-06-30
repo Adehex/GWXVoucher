@@ -258,26 +258,65 @@ async function saveVoucher() {
 
 function renderHistory() {
   const container = document.getElementById('history-list');
+  const searchInput = document.getElementById('history-search');
+  const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+
   if (history.length === 0) {
     container.innerHTML = '<div class="history-empty">No vouchers saved yet. Fill the form and click Save.</div>';
     updatePrintCount();
     return;
   }
-  container.innerHTML = history.map(v => {
-    const isSelected = selectedIds.includes(v.id);
-    const total = v.items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
-    return `<div class="history-item ${isSelected ? 'selected' : ''}" onclick="toggleSelect('${v.id}')">
-      <div class="history-check">${isSelected ? '✓' : ''}</div>
-      <div class="history-info">
-        <div class="history-info-name">${escHtml(v.dept || v.beneficiary || 'Untitled')}</div>
-        <div class="history-info-detail">${v.beneficiary ? escHtml(v.beneficiary) + ' · ' : ''}${fmtDate(v.date)} · ₦${fmtNum(total)}</div>
+
+  const filteredHistory = history.filter(v => {
+    const textToSearch = `${v.dept || ''} ${v.beneficiary || ''} ${v.date || ''}`.toLowerCase();
+    return textToSearch.includes(searchTerm);
+  });
+
+  if (filteredHistory.length === 0) {
+    container.innerHTML = '<div class="history-empty">No matching vouchers found.</div>';
+    updatePrintCount();
+    return;
+  }
+
+  const groupedHistory = {};
+  filteredHistory.forEach(v => {
+    const d = v.date || 'Unknown Date';
+    if (!groupedHistory[d]) groupedHistory[d] = [];
+    groupedHistory[d].push(v);
+  });
+
+  const html = Object.keys(groupedHistory).map(dateKey => {
+    const groupItems = groupedHistory[dateKey];
+    const itemsHtml = groupItems.map(v => {
+      const isSelected = selectedIds.includes(v.id);
+      const total = v.items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+      return `<div class="history-item ${isSelected ? 'selected' : ''}" onclick="toggleSelect('${v.id}')">
+        <div class="history-check">${isSelected ? '✓' : ''}</div>
+        <div class="history-info">
+          <div class="history-info-name">${escHtml(v.dept || v.beneficiary || 'Untitled')}</div>
+          <div class="history-info-detail">${v.beneficiary ? escHtml(v.beneficiary) + ' · ' : ''}₦${fmtNum(total)}</div>
+        </div>
+        <div class="history-actions">
+          <button class="history-btn" onclick="event.stopPropagation(); editFromHistory('${v.id}')" title="Edit">✎</button>
+          <button class="history-btn delete" onclick="event.stopPropagation(); deleteFromHistory('${v.id}')" title="Delete">×</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `
+      <div class="history-group">
+        <div class="history-group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span>📅 ${fmtDate(dateKey)}</span>
+          <span style="font-size:11px;color:var(--text3)">${groupItems.length} items</span>
+        </div>
+        <div class="history-group-content">
+          ${itemsHtml}
+        </div>
       </div>
-      <div class="history-actions">
-        <button class="history-btn" onclick="event.stopPropagation(); editFromHistory('${v.id}')" title="Edit">✎</button>
-        <button class="history-btn delete" onclick="event.stopPropagation(); deleteFromHistory('${v.id}')" title="Delete">×</button>
-      </div>
-    </div>`;
+    `;
   }).join('');
+
+  container.innerHTML = html;
   updatePrintCount();
 }
 
@@ -286,12 +325,42 @@ function toggleSelect(id) {
   if (idx >= 0) {
     selectedIds.splice(idx, 1);
   } else {
-    if (selectedIds.length >= 3) {
-      showToast('Maximum 3 vouchers can be selected for printing.', 'error');
-      return;
-    }
     selectedIds.push(id);
   }
+  renderHistory();
+  renderSelectedPreviews();
+}
+
+function selectAllHistory() {
+  const searchInput = document.getElementById('history-search');
+  const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+  
+  const filteredHistory = history.filter(v => {
+    const textToSearch = `${v.dept || ''} ${v.beneficiary || ''} ${v.date || ''}`.toLowerCase();
+    return textToSearch.includes(searchTerm);
+  });
+
+  filteredHistory.forEach(v => {
+    if (!selectedIds.includes(v.id)) {
+      selectedIds.push(v.id);
+    }
+  });
+  renderHistory();
+  renderSelectedPreviews();
+}
+
+function deselectAllHistory() {
+  const searchInput = document.getElementById('history-search');
+  const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+  
+  const filteredHistory = history.filter(v => {
+    const textToSearch = `${v.dept || ''} ${v.beneficiary || ''} ${v.date || ''}`.toLowerCase();
+    return textToSearch.includes(searchTerm);
+  });
+
+  const idsToRemove = filteredHistory.map(v => v.id);
+  selectedIds = selectedIds.filter(id => !idsToRemove.includes(id));
+  
   renderHistory();
   renderSelectedPreviews();
 }
@@ -377,21 +446,55 @@ async function clearHistory() {
 
 function updatePrintCount() {
   const badge = document.getElementById('print-count');
+  const actionsContainer = document.getElementById('print-actions-container');
   if (selectedIds.length > 0) {
     badge.textContent = selectedIds.length;
-    badge.style.display = 'inline';
+    badge.style.display = 'inline-block';
+    if (actionsContainer) actionsContainer.style.display = 'flex';
   } else {
     badge.style.display = 'none';
+    if (actionsContainer) actionsContainer.style.display = 'none';
   }
 }
 
 function renderSelectedPreviews() {
-  for (let i = 1; i <= 3; i++) {
-    const selId = selectedIds[i - 1];
+  const printWrapper = document.querySelector('.print-page-wrapper');
+  const previewWrapper = document.getElementById('page-scale-wrapper');
+  
+  if (!printWrapper || !previewWrapper) return;
+  
+  printWrapper.innerHTML = '';
+  previewWrapper.innerHTML = '';
+  
+  const numSlots = Math.max(3, Math.ceil(selectedIds.length / 3) * 3);
+  let currentPrintPage = null;
+  let currentPreviewPage = null;
+  
+  for (let i = 0; i < numSlots; i++) {
+    if (i % 3 === 0) {
+      currentPrintPage = document.createElement('div');
+      currentPrintPage.className = 'a4-page';
+      printWrapper.appendChild(currentPrintPage);
+      
+      currentPreviewPage = document.createElement('div');
+      currentPreviewPage.className = 'a4-page';
+      if (i > 0) currentPreviewPage.style.marginTop = '24px';
+      previewWrapper.appendChild(currentPreviewPage);
+    }
+    
+    const selId = selectedIds[i];
     const data = selId ? history.find(v => v.id === selId) : null;
-    const html = buildVoucherHTML(data, i);
-    document.getElementById(`prev-v${i}`).innerHTML = html;
-    document.getElementById(`print-v${i}`).innerHTML = html;
+    const html = buildVoucherHTML(data, i + 1);
+    
+    const printCell = document.createElement('div');
+    printCell.className = 'voucher-cell';
+    printCell.innerHTML = html;
+    currentPrintPage.appendChild(printCell);
+    
+    const previewCell = document.createElement('div');
+    previewCell.className = 'voucher-cell';
+    previewCell.innerHTML = html;
+    currentPreviewPage.appendChild(previewCell);
   }
 }
 
