@@ -8,15 +8,41 @@ let history = [];
 let selectedIds = [];
 let editingVoucherId = null;
 let unsubscribeHistory = null;
-
+const icon = `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3">
+  <path d="M565-395q35-35 35-85t-35-85q-35-35-85-35t-85 35q-35 35-35 85t35 85q35 35 85 35t85-35Zm-226.5 56.5Q280-397 280-480t58.5-141.5Q397-680 480-680t141.5 58.5Q680-563 680-480t-58.5 141.5Q563-280 480-280t-141.5-58.5ZM200-440H40v-80h160v80Zm720 0H760v-80h160v80ZM440-760v-160h80v160h-80Zm0 720v-160h80v160h-80ZM256-650l-101-97 57-59 96 100-52 56Zm492 496-97-101 53-55 101 97-57 59Zm-98-550 97-101 59 57-100 96-56-52ZM154-212l101-97 55 53-97 101-59-57Zm326-268Z"/>
+</svg>`;
+const darkIcon = `<svg xmlns="http://www.w3.org/2000/svg" height="20" width="20" viewBox="0 0 640 640"><!--!Font Awesome Free v7.3.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path fill="rgb(42, 43, 55)" d="M320 64C178.6 64 64 178.6 64 320C64 461.4 178.6 576 320 576C388.8 576 451.3 548.8 497.3 504.6C504.6 497.6 506.7 486.7 502.6 477.5C498.5 468.3 488.9 462.6 478.8 463.4C473.9 463.8 469 464 464 464C362.4 464 280 381.6 280 280C280 207.9 321.5 145.4 382.1 115.2C391.2 110.7 396.4 100.9 395.2 90.8C394 80.7 386.6 72.5 376.7 70.3C358.4 66.2 339.4 64 320 64z"/></svg>`
 // =============================================
 // INIT
 // =============================================
 document.addEventListener('DOMContentLoaded', function () {
+  if (localStorage.getItem('gwx_theme') === 'light') {
+    document.body.classList.add('light-theme');
+    document.querySelectorAll('.theme-toggle-btn').forEach(btn => btn.innerHTML = darkIcon);
+  }
+
+  if (!localStorage.getItem('gwx_cookies_accepted')) {
+    setTimeout(() => {
+      const banner = document.getElementById('cookie-banner');
+      if (banner) banner.classList.add('show');
+    }, 1000);
+  }
+
   if (!auth || !db) {
     document.getElementById('auth-subtitle').textContent = "FIREBASE CONFIG MISSING. See assets/js/firebase-config.js";
     showToast("Firebase Config Missing", "error");
     return;
+  }
+
+  const savedEmail = localStorage.getItem('gwx_remembered_email');
+  const savedPassword = localStorage.getItem('gwx_remembered_password');
+  if (savedEmail) {
+    const emailInput = document.getElementById('signin-email');
+    const passInput = document.getElementById('signin-password');
+    const rememberCheckbox = document.getElementById('signin-remember');
+    if (emailInput) emailInput.value = savedEmail;
+    if (passInput && savedPassword) passInput.value = savedPassword;
+    if (rememberCheckbox) rememberCheckbox.checked = true;
   }
 
   auth.onAuthStateChanged(user => {
@@ -54,7 +80,7 @@ function loadUserHistory() {
       data.id = doc.id;
       history.push(data);
     });
-    
+
     history.sort((a, b) => {
       const dateA = new Date(a.date || 0).getTime();
       const dateB = new Date(b.date || 0).getTime();
@@ -91,10 +117,20 @@ async function handleSignIn() {
   if (!auth) return showToast("Firebase Config Missing", "error");
   const email = document.getElementById('signin-email').value.trim();
   const pass = document.getElementById('signin-password').value.trim();
-  
+  const remember = document.getElementById('signin-remember').checked;
+
   if (!email || !pass) return showToast("Please fill in all sign-in fields.", 'error');
-  
+
   try {
+    if (remember) {
+      localStorage.setItem('gwx_remembered_email', email);
+      localStorage.setItem('gwx_remembered_password', pass);
+      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    } else {
+      localStorage.removeItem('gwx_remembered_email');
+      localStorage.removeItem('gwx_remembered_password');
+      await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+    }
     await auth.signInWithEmailAndPassword(email, pass);
     showToast(`Welcome back!`);
   } catch (err) {
@@ -117,14 +153,14 @@ async function handleSignUp() {
   const pass = document.getElementById('signup-password').value.trim();
   const confirmPass = document.getElementById('signup-confirm-password').value.trim();
   const name = document.getElementById('signup-name').value.trim();
-  
+
   if (!email || !pass || !confirmPass || !name) return showToast("Please fill in all sign-up fields.", 'error');
   if (pass !== confirmPass) return showToast("Passwords do not match.", 'error');
-  
+
   try {
     const userCred = await auth.createUserWithEmailAndPassword(email, pass);
     await userCred.user.updateProfile({ displayName: name });
-    window.location.reload(); 
+    window.location.reload();
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -155,7 +191,7 @@ function adjustPreviewScale() {
   const wrapper = document.getElementById('page-scale-wrapper');
   if (!area || !wrapper) return;
   const areaW = area.clientWidth - 56;
-  const actualW = areaW > 0 ? areaW : (window.innerWidth * 0.95) - 104; 
+  const actualW = areaW > 0 ? areaW : (window.innerWidth * 0.95) - 104;
   const areaH = area.clientHeight - 56;
   const actualH = areaH > 0 ? areaH : (window.innerHeight * 0.95) - 130;
   const pageW = 297 * 3.7795; // mm to px at 96dpi
@@ -200,10 +236,10 @@ function resetForm() {
   editingVoucherId = null;
   document.getElementById('f-dept').value = 'Greenlight';
   setTodayDate();
-  ['f-manager','f-account','f-amount-words',
-   'f-audit','f-approved','f-head','f-coo','f-md'].forEach(id => {
-    document.getElementById(id).value = '';
-  });
+  ['f-manager', 'f-account', 'f-amount-words',
+    'f-audit', 'f-approved', 'f-head', 'f-coo', 'f-md'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
   document.getElementById('f-prepared').value = currentUser ? currentUser.displayName : '';
   beneficiaries = [''];
   renderBeneficiaries();
@@ -234,10 +270,10 @@ async function saveVoucher() {
   if (!db || !currentUser) return showToast("Not connected to database", "error");
   const data = getFormData();
   if (!data.beneficiary && !data.dept) return showToast('Please fill in at least the beneficiary name.', 'error');
-  
+
   data.savedAt = new Date().toLocaleString();
   const vouchersRef = db.collection('users').doc(currentUser.email).collection('vouchers');
-  
+
   try {
     if (editingVoucherId) {
       await vouchersRef.doc(editingVoucherId).set(data);
@@ -334,7 +370,7 @@ function toggleSelect(id) {
 function selectAllHistory() {
   const searchInput = document.getElementById('history-search');
   const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-  
+
   const filteredHistory = history.filter(v => {
     const textToSearch = `${v.dept || ''} ${v.beneficiary || ''} ${v.date || ''}`.toLowerCase();
     return textToSearch.includes(searchTerm);
@@ -352,7 +388,7 @@ function selectAllHistory() {
 function deselectAllHistory() {
   const searchInput = document.getElementById('history-search');
   const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-  
+
   const filteredHistory = history.filter(v => {
     const textToSearch = `${v.dept || ''} ${v.beneficiary || ''} ${v.date || ''}`.toLowerCase();
     return textToSearch.includes(searchTerm);
@@ -360,7 +396,7 @@ function deselectAllHistory() {
 
   const idsToRemove = filteredHistory.map(v => v.id);
   selectedIds = selectedIds.filter(id => !idsToRemove.includes(id));
-  
+
   renderHistory();
   renderSelectedPreviews();
 }
@@ -385,7 +421,7 @@ async function editFromHistory(id) {
   if (!db || !currentUser) return;
   const currentData = getFormData();
   const hasContent = currentData.beneficiary.trim() !== '' || currentData.items.some(i => i.desc.trim() !== '' || i.amount !== '');
-  
+
   let autoSaved = false;
   if (hasContent && editingVoucherId !== id) {
     currentData.savedAt = new Date().toLocaleString();
@@ -409,10 +445,10 @@ async function editFromHistory(id) {
   loadSlotToForm(v);
   renderItems();
   editingVoucherId = id;
-  
+
   renderHistory();
   renderSelectedPreviews();
-  
+
   if (autoSaved) {
     showToast('Current work auto-saved. Loaded new voucher.', 'success');
   } else {
@@ -423,17 +459,17 @@ async function editFromHistory(id) {
 async function clearHistory() {
   if (history.length === 0) return;
   if (!confirm('Are you sure you want to clear all history? This cannot be undone!')) return;
-  
+
   try {
     const vouchersRef = db.collection('users').doc(currentUser.email).collection('vouchers');
     const snapshot = await vouchersRef.get();
-    
+
     const batch = db.batch();
     snapshot.forEach(doc => {
       batch.delete(doc.ref);
     });
     await batch.commit();
-    
+
     selectedIds = [];
     editingVoucherId = null;
     resetForm();
@@ -460,37 +496,37 @@ function updatePrintCount() {
 function renderSelectedPreviews() {
   const printWrapper = document.querySelector('.print-page-wrapper');
   const previewWrapper = document.getElementById('page-scale-wrapper');
-  
+
   if (!printWrapper || !previewWrapper) return;
-  
+
   printWrapper.innerHTML = '';
   previewWrapper.innerHTML = '';
-  
+
   const numSlots = Math.max(3, Math.ceil(selectedIds.length / 3) * 3);
   let currentPrintPage = null;
   let currentPreviewPage = null;
-  
+
   for (let i = 0; i < numSlots; i++) {
     if (i % 3 === 0) {
       currentPrintPage = document.createElement('div');
       currentPrintPage.className = 'a4-page';
       printWrapper.appendChild(currentPrintPage);
-      
+
       currentPreviewPage = document.createElement('div');
       currentPreviewPage.className = 'a4-page';
       if (i > 0) currentPreviewPage.style.marginTop = '24px';
       previewWrapper.appendChild(currentPreviewPage);
     }
-    
+
     const selId = selectedIds[i];
     const data = selId ? history.find(v => v.id === selId) : null;
     const html = buildVoucherHTML(data, i + 1);
-    
+
     const printCell = document.createElement('div');
     printCell.className = 'voucher-cell';
     printCell.innerHTML = html;
     currentPrintPage.appendChild(printCell);
-    
+
     const previewCell = document.createElement('div');
     previewCell.className = 'voucher-cell';
     previewCell.innerHTML = html;
@@ -598,8 +634,8 @@ function recalcTotal() {
 // =============================================
 const deptData = {
   'Greenlight': { beneficiary: 'Greenlight Services Ltd', account: '3045678912', prepared: 'A. Oke', audit: 'F. Bello', approved: 'K. Adeyemi', head: 'M. Ibrahim', coo: 'S. Okonkwo', md: 'C. Eze' },
-  'Opay':       { beneficiary: 'Opay Financial Services', account: '8012345678', prepared: 'B. Lawal', audit: 'T. Nwosu', approved: 'D. Afolabi', head: 'R. Ojo', coo: 'E. Abdullahi', md: 'J. Chukwu' },
-  'Nis Courier':{ beneficiary: 'NIS Courier Services', account: '0098765432', prepared: 'G. Musa', audit: 'H. Adamu', approved: 'P. Ogundele', head: 'L. Usman', coo: 'N. Babatunde', md: 'V. Salisu' },
+  'Opay': { beneficiary: 'Opay Financial Services', account: '8012345678', prepared: 'B. Lawal', audit: 'T. Nwosu', approved: 'D. Afolabi', head: 'R. Ojo', coo: 'E. Abdullahi', md: 'J. Chukwu' },
+  'Nis Courier': { beneficiary: 'NIS Courier Services', account: '0098765432', prepared: 'G. Musa', audit: 'H. Adamu', approved: 'P. Ogundele', head: 'L. Usman', coo: 'N. Babatunde', md: 'V. Salisu' },
   'Operations': { beneficiary: 'Operations Department', account: '1029384756', prepared: 'S. Kalu', audit: 'Y. Umar', approved: 'T. Briggs', head: 'O. Peters', coo: 'N. Babatunde', md: 'C. Eze' },
 };
 
@@ -754,18 +790,18 @@ function printSelected() {
 // =============================================
 function numToWords(num) {
   if (num === 0) return 'Zero';
-  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
-    'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
-  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
   function toW(n) {
     n = Math.floor(n);
     if (n < 20) return ones[n];
-    if (n < 100) return tens[Math.floor(n/10)] + (n % 10 ? ' ' + ones[n % 10] : '');
-    if (n < 1000) return ones[Math.floor(n/100)] + ' Hundred' + (n % 100 ? ' ' + toW(n % 100) : '');
-    if (n < 1e6)  return toW(Math.floor(n/1000)) + ' Thousand' + (n % 1000 ? ' ' + toW(n % 1000) : '');
-    if (n < 1e9)  return toW(Math.floor(n/1e6)) + ' Million' + (n % 1e6 ? ' ' + toW(n % 1e6) : '');
-    return toW(Math.floor(n/1e9)) + ' Billion' + (n % 1e9 ? ' ' + toW(n % 1e9) : '');
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + toW(n % 100) : '');
+    if (n < 1e6) return toW(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + toW(n % 1000) : '');
+    if (n < 1e9) return toW(Math.floor(n / 1e6)) + ' Million' + (n % 1e6 ? ' ' + toW(n % 1e6) : '');
+    return toW(Math.floor(n / 1e9)) + ' Billion' + (n % 1e9 ? ' ' + toW(n % 1e9) : '');
   }
 
   const intPart = Math.floor(num);
@@ -790,17 +826,39 @@ function fmtDate(str) {
 
 function escHtml(str) {
   return String(str)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
-function showToast(msg, type='success') {
+function showToast(msg, type = 'success') {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = `toast ${type}`;
   void t.offsetWidth; // reflow
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// =============================================
+// THEME & COOKIES
+// =============================================
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-theme');
+  const btns = document.querySelectorAll('.theme-toggle-btn');
+  if (isLight) {
+    localStorage.setItem('gwx_theme', 'light');
+    btns.forEach(btn => btn.innerHTML = darkIcon);
+  } else {
+    localStorage.setItem('gwx_theme', 'dark');
+    // btns.forEach(btn => btn.textContent = '')
+    btns.forEach(btn => btn.innerHTML = icon);
+  }
+}
+
+function acceptCookies() {
+  localStorage.setItem('gwx_cookies_accepted', 'true');
+  const banner = document.getElementById('cookie-banner');
+  if (banner) banner.classList.remove('show');
 }
