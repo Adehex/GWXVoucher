@@ -69,7 +69,47 @@ document.addEventListener('DOMContentLoaded', function () {
   renderItems();
   adjustPreviewScale();
   window.addEventListener('resize', adjustPreviewScale);
+  initHistoryResizer();
 });
+
+function initHistoryResizer() {
+  const resizer = document.getElementById('history-resizer');
+  const sidebar = document.getElementById('history-sidebar');
+  if (!resizer || !sidebar) return;
+
+  let isResizing = false;
+  let startX;
+  let startWidth;
+
+  resizer.addEventListener('mousedown', function(e) {
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = sidebar.offsetWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!isResizing) return;
+    const dx = startX - e.clientX;
+    const newWidth = Math.max(250, Math.min(800, startWidth + dx));
+    sidebar.style.width = newWidth + 'px';
+  });
+
+  window.addEventListener('mouseup', function() {
+    if (isResizing) {
+      isResizing = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem('gwx_history_width', sidebar.style.width);
+    }
+  });
+
+  const savedWidth = localStorage.getItem('gwx_history_width');
+  if (savedWidth) {
+    sidebar.style.width = savedWidth;
+  }
+}
 
 function loadUserHistory() {
   const vouchersRef = db.collection('users').doc(currentUser.email).collection('vouchers');
@@ -211,6 +251,27 @@ function closePreviewModal() {
   document.getElementById('preview-modal').classList.remove('active');
 }
 
+function viewFromHistory(id) {
+  const v = history.find(h => h.id === id);
+  if (!v) return;
+  const html = buildVoucherHTML(v, 1);
+  const wrapper = document.getElementById('single-preview-wrapper');
+  if (wrapper) {
+    wrapper.innerHTML = `
+      <div style="transform: scale(1.4); transform-origin: top center; margin-bottom: 90px;">
+        <div class="voucher-cell" style="width: 99mm; height: 210mm; background: white; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #ccc; box-sizing: border-box; flex: none;">
+          ${html}
+        </div>
+      </div>
+    `;
+  }
+  document.getElementById('single-preview-modal').classList.add('active');
+}
+
+function closeSinglePreviewModal() {
+  document.getElementById('single-preview-modal').classList.remove('active');
+}
+
 
 
 function loadSlotToForm(d) {
@@ -292,6 +353,16 @@ async function saveVoucher() {
   }
 }
 
+function isVoucherMatch(v, searchTerm) {
+  if (!searchTerm) return true;
+  const itemsText = v.items ? v.items.map(i => `${i.desc || ''} ${i.amount || ''}`).join(' ') : '';
+  const beneficiariesText = v.beneficiaries ? v.beneficiaries.join(' ') : '';
+  const textToSearch = `${v.dept || ''} ${v.date || ''} ${v.manager || ''} ${v.beneficiary || ''} ${beneficiariesText} ${v.account || ''} ${itemsText} ${v.amountWords || ''} ${v.prepared || ''} ${v.audit || ''} ${v.approved || ''} ${v.head || ''} ${v.coo || ''} ${v.md || ''}`.toLowerCase();
+  
+  const searchTokens = searchTerm.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+  return searchTokens.every(token => textToSearch.includes(token));
+}
+
 function renderHistory() {
   const container = document.getElementById('history-list');
   const searchInput = document.getElementById('history-search');
@@ -303,10 +374,7 @@ function renderHistory() {
     return;
   }
 
-  const filteredHistory = history.filter(v => {
-    const textToSearch = `${v.dept || ''} ${v.beneficiary || ''} ${v.date || ''}`.toLowerCase();
-    return textToSearch.includes(searchTerm);
-  });
+  const filteredHistory = history.filter(v => isVoucherMatch(v, searchTerm));
 
   if (filteredHistory.length === 0) {
     container.innerHTML = '<div class="history-empty">No matching vouchers found.</div>';
@@ -327,14 +395,22 @@ function renderHistory() {
       const isSelected = selectedIds.includes(v.id);
       const total = v.items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
       return `<div class="history-item ${isSelected ? 'selected' : ''}" onclick="toggleSelect('${v.id}')">
-        <div class="history-check">${isSelected ? '✓' : ''}</div>
+        <div class="history-check"></div>
         <div class="history-info">
           <div class="history-info-name">${escHtml(v.dept || v.beneficiary || 'Untitled')}</div>
-          <div class="history-info-detail">${v.beneficiary ? escHtml(v.beneficiary) + ' · ' : ''}₦${fmtNum(total)}</div>
+          <div class="history-info-detail">${v.beneficiary ? escHtml(v.beneficiary) : ''}</div>
+          <div class="history-info-amount">₦${fmtNum(total)}</div>
         </div>
         <div class="history-actions">
-          <button class="history-btn" onclick="event.stopPropagation(); editFromHistory('${v.id}')" title="Edit">✎</button>
-          <button class="history-btn delete" onclick="event.stopPropagation(); deleteFromHistory('${v.id}')" title="Delete">×</button>
+          <button class="history-btn" onclick="event.stopPropagation(); viewFromHistory('${v.id}')" title="View">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+          <button class="history-btn" onclick="event.stopPropagation(); editFromHistory('${v.id}')" title="Edit">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          </button>
+          <button class="history-btn delete" onclick="event.stopPropagation(); deleteFromHistory('${v.id}')" title="Delete">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
         </div>
       </div>`;
     }).join('');
@@ -342,8 +418,11 @@ function renderHistory() {
     return `
       <div class="history-group">
         <div class="history-group-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span>📅 ${fmtDate(dateKey)}</span>
-          <span style="font-size:11px;color:var(--text3)">${groupItems.length} items</span>
+          <span style="display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            ${fmtDate(dateKey)}
+          </span>
+          <span style="font-size:12px; color:var(--text3); font-weight: 500;">${groupItems.length} items</span>
         </div>
         <div class="history-group-content">
           ${itemsHtml}
@@ -371,10 +450,7 @@ function selectAllHistory() {
   const searchInput = document.getElementById('history-search');
   const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
 
-  const filteredHistory = history.filter(v => {
-    const textToSearch = `${v.dept || ''} ${v.beneficiary || ''} ${v.date || ''}`.toLowerCase();
-    return textToSearch.includes(searchTerm);
-  });
+  const filteredHistory = history.filter(v => isVoucherMatch(v, searchTerm));
 
   filteredHistory.forEach(v => {
     if (!selectedIds.includes(v.id)) {
@@ -389,10 +465,7 @@ function deselectAllHistory() {
   const searchInput = document.getElementById('history-search');
   const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
 
-  const filteredHistory = history.filter(v => {
-    const textToSearch = `${v.dept || ''} ${v.beneficiary || ''} ${v.date || ''}`.toLowerCase();
-    return textToSearch.includes(searchTerm);
-  });
+  const filteredHistory = history.filter(v => isVoucherMatch(v, searchTerm));
 
   const idsToRemove = filteredHistory.map(v => v.id);
   selectedIds = selectedIds.filter(id => !idsToRemove.includes(id));
@@ -562,12 +635,12 @@ function renderBeneficiaries() {
 
   beneficiaries.forEach((name, i) => {
     const row = document.createElement('div');
-    row.className = 'beneficiary-row';
+    row.className = 'row';
     row.innerHTML = `
-      <input class="form-input beneficiary-input" type="text" placeholder="Beneficiary ${i + 1}"
+      <input type="text" placeholder="Beneficiary ${i + 1}"
         value="${escHtml(name || '')}"
         oninput="beneficiaries[${i}] = this.value" />
-      <button class="remove-item-btn" onclick="removeBeneficiary(${i})" title="Remove">×</button>
+      <button class="btn-icon" onclick="removeBeneficiary(${i})" title="Remove">✕</button>
     `;
     container.appendChild(row);
   });
@@ -603,14 +676,13 @@ function renderItems() {
     row.className = 'item-row';
     row.innerHTML = `
       <div class="sn-badge">${i + 1}</div>
-      <input class="form-input" type="text" placeholder="Description…"
+      <input class="col-desc" type="text" placeholder="Description…"
         value="${escHtml(item.desc || '')}"
         oninput="items[${i}].desc = this.value" />
-      <input class="form-input" type="number" placeholder="0.00" min="0" step="0.01"
+      <input class="amount-input" type="number" placeholder="0.00" min="0" step="0.01"
         value="${item.amount || ''}"
-        oninput="items[${i}].amount = this.value; recalcTotal()"
-        style="text-align:right;font-family:var(--mono);padding-right:7px" />
-      <button class="remove-item-btn" onclick="removeItem(${i})" title="Remove">×</button>
+        oninput="items[${i}].amount = this.value; recalcTotal()" />
+      <button class="btn-icon" onclick="removeItem(${i})" title="Remove">✕</button>
     `;
     container.appendChild(row);
   });
