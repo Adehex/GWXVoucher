@@ -1125,6 +1125,7 @@ body {
 }
 
 .history-group-header:hover {
+  border-color: #f97316;
   color: var(--text);
 }
 
@@ -1155,10 +1156,6 @@ body {
 .history-item:hover {
   background: var(--surface3);
   border-color: #FF5500;
-}
-
-.history-item.selected {
-  /* Removed muddy background, keep default surface */
 }
 
 .history-check {
@@ -1284,6 +1281,8 @@ body {
   }
 
   .sidebar {
+    flex: none;
+    height: auto;
     overflow: visible;
     padding: 20px 10px;
   }

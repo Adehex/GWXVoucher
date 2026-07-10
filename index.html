@@ -14,16 +14,34 @@
     /* =============================================
        MOCK.HTML STYLES (Scoped to .mock-card)
     ============================================= */
+    body {
+      --mock-bg: #0b1120;
+      --mock-surface: #111827;
+      --mock-border: #1f2937;
+      --mock-text: #f1f5f9;
+      --mock-text-muted: #cbd5e1;
+      --mock-text-faint: #94a3b8;
+      --mock-divider: #1e293b;
+    }
+    body.light-theme {
+      --mock-bg: #f8fafc;
+      --mock-surface: #ffffff;
+      --mock-border: #e2e8f0;
+      --mock-text: #0f172a;
+      --mock-text-muted: #334155;
+      --mock-text-faint: #64748b;
+      --mock-divider: #cbd5e1;
+    }
     .mock-card {
       --orange: #f97316;
       --orange-hover: #ea580c;
-      --dark-bg: #0b1120;
-      --dark-surface: #111827;
-      --dark-border: #1f2937;
-      --slate-100: #f1f5f9;
-      --slate-300: #cbd5e1;
-      --slate-400: #94a3b8;
-      --slate-800: #1e293b;
+      --dark-bg: var(--mock-bg);
+      --dark-surface: var(--mock-surface);
+      --dark-border: var(--mock-border);
+      --slate-100: var(--mock-text);
+      --slate-300: var(--mock-text-muted);
+      --slate-400: var(--mock-text-faint);
+      --slate-800: var(--mock-divider);
 
       background: var(--dark-surface) !important;
       border: 1px solid var(--dark-border) !important;
@@ -118,10 +136,10 @@
     .mock-card .btn-primary { background: var(--orange) !important; color: #fff !important; }
     .mock-card .btn-primary:hover { background: var(--orange-hover) !important; }
     .mock-card .btn-outline {
-      background: transparent !important; color: var(--slate-100) !important;
-      border: 1px solid var(--dark-border) !important;
+      background: transparent !important; color: var(--mock-text) !important;
+      border: 1px solid var(--mock-border) !important;
     }
-    .mock-card .btn-outline:hover { background: var(--slate-800) !important; }
+    .mock-card .btn-outline:hover { background: var(--mock-divider) !important; }
     .mock-card .btn-dashed {
       width: 100% !important; background: transparent !important; color: var(--slate-400) !important;
       border: 1px dashed var(--dark-border) !important;
@@ -270,18 +288,17 @@
   <div id="app-screen">
 
     <!-- ===== APP HEADER ===== -->
-    <header class="app-header" style="background: #0b1120; border-bottom: 1px solid #1f2937; height: 64px; padding: 0 1.5rem;">
+    <header class="app-header" style="background: var(--mock-bg); border-bottom: 1px solid var(--mock-border); height: 64px; padding: 0 1.5rem;">
       <div class="app-logo" style="gap: 1.25rem;">
         <img src="assets/img/logo.png" alt="GWX Logo" style="height:32px;object-fit:contain">
-        <div class="logo-divider" style="width: 1px; height: 24px; background: #1e293b;"></div>
-        <div class="logo-subtitle" style="color: #94a3b8; font-family: 'Inter', sans-serif; font-weight: 600; letter-spacing: 0.05em; font-size: 1rem;">PAYMENT REQUEST VOUCHER GENERATOR</div>
+        <div class="logo-divider" style="width: 1px; height: 24px; background: var(--mock-divider);"></div>
+        <div class="logo-subtitle" style="color: var(--mock-text-faint); font-family: 'Inter', sans-serif; font-weight: 600; letter-spacing: 0.05em; font-size: 1rem;">PAYMENT REQUEST VOUCHER GENERATOR</div>
       </div>
-      <div class="header-right" style="gap: 1.25rem;">
-        <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode" style="background: transparent; border: none; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
+      <div class="header-right mock-card" style="gap: 1.25rem; background: transparent !important; border: none !important; padding: 0 !important; box-shadow: none !important;">
+        <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode" style="background: transparent; border: none; color: var(--mock-text-faint); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
         </button>
-        <button onclick="handleLogout()"
-          style="background: transparent; color: #f1f5f9; border: 1px solid #1f2937; border-radius: 0.375rem; height: 36px; padding: 0 1rem; font-family: 'Inter', sans-serif; font-size: 0.875rem; font-weight: 500; display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background='#1e293b'" onmouseout="this.style.background='transparent'">
+        <button class="btn btn-outline" onclick="handleLogout()" style="height: 36px; padding: 0 1rem; display: inline-flex; align-items: center; gap: 0.5rem;">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
           Logout
         </button>
@@ -292,7 +309,7 @@
     <div class="app-body">
 
       <!-- ===== SIDEBAR ===== -->
-      <aside class="sidebar voucher-form" style="background: var(--dark-bg, #0b1120); overflow-y: auto;">
+      <aside class="sidebar voucher-form" style="background: var(--mock-bg); overflow-y: auto;">
         <div class="sidebar-scroll mock-card" style="margin: 32px auto;">
           <!-- Header -->
           <div class="card-header">
