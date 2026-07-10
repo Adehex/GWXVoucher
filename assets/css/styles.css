@@ -326,7 +326,7 @@ body {
   font-weight: 800;
   letter-spacing: 1.2px;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--text);
   margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
@@ -398,7 +398,7 @@ body {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--text);
   font-family: var(--font);
   font-size: 14px;
   outline: none;
@@ -1175,8 +1175,8 @@ body {
 }
 
 .history-item.selected .history-check {
-  border-color: #fff;
-  background-color: #fff;
+  border-color: var(--text);
+  background-color: var(--text);
 }
 
 .history-info {
@@ -1188,7 +1188,7 @@ body {
 .history-info-name {
   font-size: 16px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text);
   margin-bottom: 4px;
 }
 
@@ -1202,7 +1202,7 @@ body {
 .history-info-amount {
   font-size: 14px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text);
 }
 
 .history-actions {
