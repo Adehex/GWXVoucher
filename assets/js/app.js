@@ -48,12 +48,68 @@ document.addEventListener('DOMContentLoaded', function () {
   auth.onAuthStateChanged(user => {
     if (user) {
       currentUser = { email: user.email, displayName: user.displayName || user.email.split('@')[0], uid: user.uid };
+      const loadingScreen = document.getElementById('loading-screen');
+      if (loadingScreen) loadingScreen.style.display = 'none';
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app-screen').style.display = 'flex';
       document.getElementById('f-prepared').value = currentUser.displayName;
+      
+      const profileNameEl = document.getElementById('profile-user-name');
+      const profileEmailEl = document.getElementById('profile-user-email');
+      if (profileNameEl) profileNameEl.textContent = currentUser.displayName;
+      if (profileEmailEl) profileEmailEl.textContent = currentUser.email;
+
+      const settingsAvatarTextEl = document.getElementById('settings-avatar-text');
+      const settingsUsernameEl = document.getElementById('settings-username');
+      const settingsEmailEl = document.getElementById('settings-email');
+      
+      if (settingsAvatarTextEl) settingsAvatarTextEl.textContent = currentUser.displayName.charAt(0).toUpperCase();
+      if (settingsUsernameEl) settingsUsernameEl.value = currentUser.displayName;
+      if (settingsEmailEl) settingsEmailEl.value = currentUser.email;
+
+      // Load profile photo
+      const applyProfilePhoto = (photoData) => {
+        const avatar = document.getElementById('settings-avatar');
+        const mainBtn = document.querySelector('.profile-btn');
+        if (avatar) avatar.style.backgroundImage = `url(${photoData})`;
+        if (settingsAvatarTextEl) settingsAvatarTextEl.style.display = 'none';
+        if (mainBtn) {
+          mainBtn.style.backgroundImage = `url(${photoData})`;
+          mainBtn.style.backgroundSize = 'cover';
+          mainBtn.style.backgroundPosition = 'center';
+          mainBtn.innerHTML = '';
+        }
+      };
+
+      const localPhoto = localStorage.getItem('profilePhoto_' + currentUser.email);
+      if (localPhoto) {
+        applyProfilePhoto(localPhoto);
+      }
+
+      db.collection('users').doc(currentUser.email).get().then(doc => {
+        if (doc.exists && doc.data().profilePhoto) {
+          const photoData = doc.data().profilePhoto;
+          localStorage.setItem('profilePhoto_' + currentUser.email, photoData);
+          applyProfilePhoto(photoData);
+        } else if (doc.exists && doc.data().profilePhoto === null) {
+          // Photo was deleted
+          localStorage.removeItem('profilePhoto_' + currentUser.email);
+          const avatar = document.getElementById('settings-avatar');
+          const mainBtn = document.querySelector('.profile-btn');
+          if (avatar) avatar.style.backgroundImage = 'none';
+          if (settingsAvatarTextEl) settingsAvatarTextEl.style.display = '';
+          if (mainBtn) {
+            mainBtn.style.backgroundImage = 'none';
+            mainBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+          }
+        }
+      }).catch(err => console.error("Error loading profile photo:", err));
+      
       loadUserHistory();
     } else {
       currentUser = null;
+      const loadingScreen = document.getElementById('loading-screen');
+      if (loadingScreen) loadingScreen.style.display = 'none';
       document.getElementById('login-screen').style.display = 'flex';
       document.getElementById('app-screen').style.display = 'none';
       if (unsubscribeHistory) {
@@ -142,19 +198,58 @@ function loadUserHistory() {
 // AUTHENTICATION
 // =============================================
 function toggleAuthMode(mode) {
+  document.getElementById('form-signin').classList.add('hidden');
+  document.getElementById('form-signup').classList.add('hidden');
+  document.getElementById('form-reset').classList.add('hidden');
+  document.getElementById('tab-signin').classList.remove('active');
+  document.getElementById('tab-signup').classList.remove('active');
+  document.getElementById('auth-tabs').style.display = 'flex'; 
+
   if (mode === 'signup') {
-    document.getElementById('form-signin').classList.add('hidden');
     document.getElementById('form-signup').classList.remove('hidden');
-    document.getElementById('auth-subtitle').textContent = "Create an account to continue";
+    document.getElementById('auth-main-title').textContent = "Create an account";
+    document.getElementById('auth-subtitle').textContent = "Set up your account to get started.";
+    document.getElementById('tab-signup').classList.add('active');
+  } else if (mode === 'reset') {
+    document.getElementById('form-reset').classList.remove('hidden');
+    document.getElementById('auth-main-title').textContent = "Reset password";
+    document.getElementById('auth-subtitle').textContent = "Enter your email to receive a reset link.";
+    document.getElementById('auth-tabs').style.display = 'none';
   } else {
-    document.getElementById('form-signup').classList.add('hidden');
     document.getElementById('form-signin').classList.remove('hidden');
-    document.getElementById('auth-subtitle').textContent = "Please sign in to continue";
+    document.getElementById('auth-main-title').textContent = "Welcome back";
+    document.getElementById('auth-subtitle').textContent = "Sign in to continue.";
+    document.getElementById('tab-signin').classList.add('active');
+  }
+}
+
+async function handleResetPassword() {
+  if (!auth) return showToast("Firebase Config Missing", "error");
+  const email = document.getElementById('reset-email').value.trim();
+  if (!email) return showToast("Please enter your email.", 'error');
+
+  try {
+    await auth.sendPasswordResetEmail(email);
+    showToast("Reset link sent! Check your email.");
+    toggleAuthMode('signin');
+  } catch (err) {
+    showToast(err.message, 'error');
   }
 }
 
 async function handleSignIn() {
   if (!auth) return showToast("Firebase Config Missing", "error");
+  
+  const maxAttempts = 5;
+  const lockoutTime = 5 * 60 * 1000; // 5 minutes
+  let failedAttempts = parseInt(localStorage.getItem('gwx_failed_login_attempts') || '0');
+  let lockoutUntil = parseInt(localStorage.getItem('gwx_login_lockout_until') || '0');
+
+  if (Date.now() < lockoutUntil) {
+    const minutesLeft = Math.ceil((lockoutUntil - Date.now()) / 60000);
+    return showToast(`Too many failed attempts. Try again in ${minutesLeft} minute(s).`, 'error');
+  }
+
   const email = document.getElementById('signin-email').value.trim();
   const pass = document.getElementById('signin-password').value.trim();
   const remember = document.getElementById('signin-remember').checked;
@@ -172,9 +267,22 @@ async function handleSignIn() {
       await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
     }
     await auth.signInWithEmailAndPassword(email, pass);
+    
+    // Reset on success
+    localStorage.removeItem('gwx_failed_login_attempts');
+    localStorage.removeItem('gwx_login_lockout_until');
+    
     showToast(`Welcome back!`);
   } catch (err) {
-    showToast(err.message, 'error');
+    failedAttempts++;
+    if (failedAttempts >= maxAttempts) {
+      localStorage.setItem('gwx_login_lockout_until', Date.now() + lockoutTime);
+      localStorage.removeItem('gwx_failed_login_attempts');
+      showToast(`Account temporarily locked due to too many failed attempts. Try again in 5 minutes.`, 'error');
+    } else {
+      localStorage.setItem('gwx_failed_login_attempts', failedAttempts);
+      showToast(`Invalid credentials. ${maxAttempts - failedAttempts} attempt(s) remaining.`, 'error');
+    }
   }
 }
 
@@ -203,6 +311,56 @@ async function handleSignUp() {
     window.location.reload();
   } catch (err) {
     showToast(err.message, 'error');
+  }
+}
+
+function handleSettings() {
+  const menu = document.getElementById('profile-menu');
+  if (menu) menu.classList.add('hidden');
+  
+  const modal = document.getElementById('settings-modal');
+  if (modal) modal.classList.add('active');
+}
+
+function closeSettingsModal(e) {
+  const modal = document.getElementById('settings-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+function switchSettingsTab(tabName) {
+  const profileTab = document.getElementById('settings-tab-profile');
+  const passwordTab = document.getElementById('settings-tab-password');
+  const profileBtn = document.getElementById('tab-btn-profile');
+  const passwordBtn = document.getElementById('tab-btn-password');
+
+  if (!profileTab || !passwordTab) return;
+
+  if (tabName === 'profile') {
+    profileTab.classList.remove('hidden');
+    passwordTab.classList.add('hidden');
+    
+    profileBtn.style.background = 'rgba(255,255,255,0.05)';
+    profileBtn.style.border = '1px solid var(--border2)';
+    profileBtn.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+    profileBtn.style.color = '#fff';
+    
+    passwordBtn.style.background = 'transparent';
+    passwordBtn.style.border = '1px solid transparent';
+    passwordBtn.style.boxShadow = 'none';
+    passwordBtn.style.color = 'var(--text2)';
+  } else {
+    profileTab.classList.add('hidden');
+    passwordTab.classList.remove('hidden');
+    
+    passwordBtn.style.background = 'rgba(255,255,255,0.05)';
+    passwordBtn.style.border = '1px solid var(--border2)';
+    passwordBtn.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+    passwordBtn.style.color = '#fff';
+    
+    profileBtn.style.background = 'transparent';
+    profileBtn.style.border = '1px solid transparent';
+    profileBtn.style.boxShadow = 'none';
+    profileBtn.style.color = 'var(--text2)';
   }
 }
 
@@ -394,10 +552,14 @@ function renderHistory() {
     const itemsHtml = groupItems.map(v => {
       const isSelected = selectedIds.includes(v.id);
       const total = v.items.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
+      const printedBadge = v.printed ? `<span class="printed-badge">PRINTED</span>` : '';
       return `<div class="history-item ${isSelected ? 'selected' : ''}" onclick="toggleSelect('${v.id}')">
         <div class="history-check"></div>
         <div class="history-info">
-          <div class="history-info-name">${escHtml(v.dept || v.beneficiary || 'Untitled')}</div>
+          <div class="history-info-name">
+            ${escHtml(v.dept || v.beneficiary || 'Untitled')}
+            ${printedBadge}
+          </div>
           <div class="history-info-detail">${v.beneficiary ? escHtml(v.beneficiary) : ''}</div>
           <div class="history-info-amount">₦${fmtNum(total)}</div>
         </div>
@@ -408,6 +570,9 @@ function renderHistory() {
           <button class="history-btn" onclick="event.stopPropagation(); editFromHistory('${v.id}')" title="Edit">
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
           </button>
+          ${v.printed ? `<button class="history-btn" onclick="event.stopPropagation(); unmarkPrinted('${v.id}')" title="Remove Printed Stamp">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>
+          </button>` : ''}
           <button class="history-btn delete" onclick="event.stopPropagation(); deleteFromHistory('${v.id}')" title="Delete">
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           </button>
@@ -476,6 +641,7 @@ function deselectAllHistory() {
 
 async function deleteFromHistory(id) {
   if (!db || !currentUser) return;
+  if (!(await showConfirm('Delete Voucher', 'Are you sure you want to delete this voucher? This action cannot be undone.'))) return;
   try {
     await db.collection('users').doc(currentUser.email).collection('vouchers').doc(id).delete();
     selectedIds = selectedIds.filter(sid => sid !== id);
@@ -531,7 +697,7 @@ async function editFromHistory(id) {
 
 async function clearHistory() {
   if (history.length === 0) return;
-  if (!confirm('Are you sure you want to clear all history? This cannot be undone!')) return;
+  if (!(await showConfirm('Clear All History', 'Are you sure you want to clear all history? This cannot be undone!'))) return;
 
   try {
     const vouchersRef = db.collection('users').doc(currentUser.email).collection('vouchers');
@@ -848,13 +1014,35 @@ function sigRow(label, value) {
 // =============================================
 // PRINT
 // =============================================
-function printSelected() {
+async function printSelected() {
   if (selectedIds.length === 0) {
     showToast('Please select at least one voucher from history to print.', 'error');
     return;
   }
+  
+  if (db && currentUser) {
+    try {
+      const vouchersRef = db.collection('users').doc(currentUser.email).collection('vouchers');
+      const promises = selectedIds.map(id => vouchersRef.doc(id).update({ printed: true }).catch(e => console.error(e)));
+      await Promise.all(promises);
+    } catch(err) {
+      console.error("Error updating printed status:", err);
+    }
+  }
+
   renderSelectedPreviews();
   window.print();
+}
+
+async function unmarkPrinted(id) {
+  if (!db || !currentUser) return;
+  try {
+    await db.collection('users').doc(currentUser.email).collection('vouchers').doc(id).update({ printed: false });
+    showToast('Removed printed stamp from voucher.', 'success');
+  } catch (err) {
+    console.error("Error unmarking printed:", err);
+    showToast('Failed to remove printed stamp.', 'error');
+  }
 }
 
 // =============================================
@@ -886,6 +1074,31 @@ function numToWords(num) {
 // =============================================
 // UTILITIES
 // =============================================
+function showConfirm(title, message, okText = 'Delete') {
+  return new Promise((resolve) => {
+    document.getElementById('confirm-title').innerText = title;
+    document.getElementById('confirm-message').innerText = message;
+    
+    const okBtn = document.getElementById('confirm-ok-btn');
+    okBtn.innerText = okText;
+    
+    const modal = document.getElementById('confirm-modal');
+    modal.classList.add('active');
+
+    const handleOk = () => { cleanup(); resolve(true); };
+    const handleCancel = () => { cleanup(); resolve(false); };
+
+    const cleanup = () => {
+      modal.classList.remove('active');
+      document.getElementById('confirm-cancel-btn').removeEventListener('click', handleCancel);
+      okBtn.removeEventListener('click', handleOk);
+    };
+
+    document.getElementById('confirm-cancel-btn').addEventListener('click', handleCancel);
+    okBtn.addEventListener('click', handleOk);
+  });
+}
+
 function fmtNum(n) {
   return n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -934,3 +1147,24 @@ function acceptCookies() {
   const banner = document.getElementById('cookie-banner');
   if (banner) banner.classList.remove('show');
 }
+
+// =============================================
+// PROFILE MENU
+// =============================================
+function toggleProfileMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('profile-menu');
+  if (menu) {
+    menu.classList.toggle('hidden');
+  }
+}
+
+window.addEventListener('click', (e) => {
+  const menu = document.getElementById('profile-menu');
+  const btn = document.querySelector('.profile-btn');
+  if (menu && !menu.classList.contains('hidden')) {
+    if (!menu.contains(e.target) && (!btn || !btn.contains(e.target))) {
+      menu.classList.add('hidden');
+    }
+  }
+});
