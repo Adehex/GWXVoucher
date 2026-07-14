@@ -21,6 +21,27 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => btn.innerHTML = darkIcon);
   }
 
+  const appBody = document.querySelector('.app-body');
+  if (appBody) {
+    appBody.addEventListener('scroll', function() {
+      if (window.innerWidth > 992) return; // Mobile only
+      const historyHeader = document.querySelector('.history-section-header');
+      const printActions = document.getElementById('print-actions-container');
+      
+      // selectedIds is a global array defined later, but we can check if it has items
+      // by checking if the container is naturally visible (display != 'none')
+      if (historyHeader && printActions && printActions.style.display !== 'none') {
+        const rect = historyHeader.getBoundingClientRect();
+        // If the history header is pushed down past 50% of the viewport (i.e. user is looking at the form)
+        if (rect.top > window.innerHeight * 0.5) {
+          printActions.classList.add('fade-out');
+        } else {
+          printActions.classList.remove('fade-out');
+        }
+      }
+    });
+  }
+
   if (!localStorage.getItem('gwx_cookies_accepted')) {
     setTimeout(() => {
       const banner = document.getElementById('cookie-banner');
@@ -409,9 +430,12 @@ function closePreviewModal() {
   document.getElementById('preview-modal').classList.remove('active');
 }
 
+let currentSinglePreviewId = null;
+
 function viewFromHistory(id) {
   const v = history.find(h => h.id === id);
   if (!v) return;
+  currentSinglePreviewId = id;
   const html = buildVoucherHTML(v, 1);
   const wrapper = document.getElementById('single-preview-wrapper');
   if (wrapper) {
@@ -428,6 +452,36 @@ function viewFromHistory(id) {
 
 function closeSinglePreviewModal() {
   document.getElementById('single-preview-modal').classList.remove('active');
+  currentSinglePreviewId = null;
+}
+
+async function printSingleVoucher() {
+  if (!currentSinglePreviewId) return;
+  const v = history.find(h => h.id === currentSinglePreviewId);
+  if (!v) return;
+
+  // Mark as printed
+  if (db && currentUser) {
+    try {
+      await db.collection('users').doc(currentUser.email).collection('vouchers')
+        .doc(currentSinglePreviewId).update({ printed: true });
+    } catch(err) {
+      console.error("Error updating printed status:", err);
+    }
+  }
+
+  // Render to print wrapper
+  const printWrapper = document.querySelector('.print-page-wrapper');
+  if (printWrapper) {
+    printWrapper.innerHTML = '';
+    const page = document.createElement('div');
+    page.className = 'a4-page';
+    page.innerHTML = buildVoucherHTML(v, 1);
+    printWrapper.appendChild(page);
+  }
+
+  window.print();
+  renderHistory();
 }
 
 
@@ -1168,3 +1222,58 @@ window.addEventListener('click', (e) => {
     }
   }
 });
+
+// =============================================
+// SETTINGS
+// =============================================
+async function saveProfileSettings() {
+  const user = auth.currentUser;
+  if (!user) return;
+  const newName = document.getElementById('settings-username').value;
+  try {
+    await user.updateProfile({ displayName: newName });
+    await db.collection('users').doc(user.email).set({
+      displayName: newName
+    }, { merge: true });
+    
+    const profileNameEl = document.getElementById('profile-name');
+    if (profileNameEl) profileNameEl.textContent = newName;
+    const settingsAvatarTextEl = document.getElementById('settings-avatar-text');
+    if (settingsAvatarTextEl && newName) settingsAvatarTextEl.textContent = newName.charAt(0).toUpperCase();
+    
+    showToast("Profile saved successfully", "success");
+    closeSettingsModal();
+  } catch (err) {
+    showToast("Error saving profile: " + err.message, "error");
+  }
+}
+
+async function confirmDeleteAccount() {
+  const confirmed = await customConfirm(
+    "Delete Account", 
+    "Are you absolutely sure you want to delete your account? Your account will be deactivated and permanently deleted after 30 days. All your data will be permanently lost after this period."
+  );
+  if (!confirmed) return;
+  
+  const user = auth.currentUser;
+  if (!user) return;
+  
+  try {
+    try {
+      await db.collection('users').doc(user.email).delete();
+    } catch(e) {
+      console.warn("Could not delete user document", e);
+    }
+    
+    await user.delete();
+    showToast("Account deleted successfully.", "success");
+    closeSettingsModal();
+  } catch (error) {
+    console.error("Error deleting account:", error);
+    if (error.code === 'auth/requires-recent-login') {
+      showToast("Please sign out and sign in again to verify your identity before deleting your account.", "error");
+    } else {
+      showToast(error.message, "error");
+    }
+  }
+}

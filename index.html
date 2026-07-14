@@ -9,7 +9,7 @@
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
     rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/styles.css?v=14">
+  <link rel="stylesheet" href="assets/css/styles.css?v=9">
   <style>
     /* =============================================
        MOCK.HTML STYLES (Scoped to .mock-card)
@@ -602,6 +602,7 @@
         <div class="modal-header">
           <div class="modal-title">Voucher Preview</div>
           <div style="display: flex; gap: 16px; align-items: center;">
+            <button class="btn btn-success btn-sm" onclick="printSingleVoucher()">🖨 Print</button>
             <button class="modal-close" onclick="closeSinglePreviewModal()" title="Close">&times;</button>
           </div>
         </div>
@@ -703,9 +704,29 @@
             </div>
 
             <!-- Footer Actions -->
-            <div style="display: flex; justify-content: flex-end; margin-top: auto;">
+            <div style="display: flex; justify-content: flex-end; padding-top: 8px;">
               <button class="btn btn-primary" onclick="saveProfileSettings()" style="background: var(--bg); color: var(--text); border: 1px solid var(--border2); padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); cursor: pointer;">Save changes</button>
             </div>
+
+            <!-- Danger Zone -->
+            <details style="padding-top: 16px; border-top: 1px solid var(--border2);">
+              <summary style="font-size: 14px; font-weight: 600; color: var(--red); margin: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; outline: none; user-select: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                Danger Zone
+                <svg class="dz-chevron" style="margin-left: auto; transition: transform 0.2s;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </summary>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px; background: var(--red-dim); border: 1px solid rgba(240, 82, 82, 0.3); border-radius: 8px; margin-top: 16px;">
+                <div style="display: flex; flex-direction: column; gap: 4px; text-align: left;">
+                  <span style="font-weight: 600; color: var(--text); font-size: 14px;">Delete account</span>
+                  <span style="color: var(--text2); font-size: 13px;">Permanently delete your account and all data.</span>
+                </div>
+                <button onclick="confirmDeleteAccount()" style="background: var(--red); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 10px rgba(240, 82, 82, 0.2);">Delete</button>
+              </div>
+            </details>
+            <style>
+              details > summary::-webkit-details-marker { display: none; }
+              details[open] .dz-chevron { transform: rotate(180deg); }
+            </style>
           </div>
 
           <!-- Password Tab -->
@@ -779,7 +800,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="assets/js/firebase-config.js"></script>
-  <script src="assets/js/app.js?v=8"></script>
+  <script src="assets/js/app.js?v=12"></script>
   <script>
     function handleProfilePhotoUpload(event) {
       const file = event.target.files[0];
