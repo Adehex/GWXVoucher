@@ -1238,8 +1238,7 @@ body {
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-.history-item:hover .history-actions,
-.history-item.selected .history-actions {
+.history-item:hover .history-actions {
   opacity: 1;
   pointer-events: auto;
 }
